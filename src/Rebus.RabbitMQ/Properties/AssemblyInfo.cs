@@ -34,4 +34,9 @@ using System.Runtime.InteropServices;
 // [assembly: AssemblyVersion("1.0.*")]
 [assembly: AssemblyVersion("1.0.0.0")]
 [assembly: AssemblyFileVersion("1.0.0.0")]
-[assembly: InternalsVisibleTo("Rebus.Tests")]
+[assembly: InternalsVisibleTo("Rebus.Tests, PublicKey=" +
+                              "002400000480000094000000060200000024000052534131000400000100010031365d6bf2032e" +
+                              "98663aec367d7dd63dc744ac3a2dea69e3995a98fda7833d9602c8a51dff06c77baa617c7d254b" +
+                              "1b11b7971b1a9f73ac08bd5ed8fe1d2e8e0aaf587540c44fa047d88aaa42aadd507928580e073e" +
+                              "3472cf8227215521815abbeeccecede5f09a22f3ffcacf746f5dfb0f9ff60ce9198f506046230e" +
+                              "b4573dac")]

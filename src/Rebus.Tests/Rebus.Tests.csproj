@@ -32,6 +32,12 @@
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
+  <PropertyGroup>
+    <SignAssembly>true</SignAssembly>
+  </PropertyGroup>
+  <PropertyGroup>
+    <AssemblyOriginatorKeyFile>..\Rebus.snk</AssemblyOriginatorKeyFile>
+  </PropertyGroup>
   <ItemGroup>
     <Reference Include="Autofac, Version=2.6.3.862, Culture=neutral, PublicKeyToken=17863af14b0044da, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
@@ -356,6 +362,9 @@
     <Content Include="Timeout\AppConfigExamples\app.config.02.xml">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <None Include="..\Rebus.snk">
+      <Link>Rebus.snk</Link>
+    </None>
     <None Include="App.config" />
     <Content Include="Configuration\RealAppConfigs\App.1.config">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>

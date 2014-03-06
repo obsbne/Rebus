@@ -1,9 +1,11 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.ServiceModel;
 using System.Threading;
+using System.Threading.Tasks;
 using Microsoft.ServiceBus;
 using Microsoft.ServiceBus.Messaging;
 using Rebus.Logging;
@@ -36,7 +38,8 @@ namespace Rebus.AzureServiceBus
         /// <summary>
         /// Will be used to cache queue clients for each queue that we need to communicate with
         /// </summary>
-        readonly ConcurrentDictionary<string, QueueClient> queueClients = new ConcurrentDictionary<string, QueueClient>();
+        readonly ConcurrentDictionary<string, QueueClientContext> queueClientContexts = new ConcurrentDictionary<string, QueueClientContext>();
+        readonly ConcurrentDictionary<string, WorkingMessageContext> innerWorkingQueue = new ConcurrentDictionary<string, WorkingMessageContext>();
         readonly NamespaceManager namespaceManager;
         readonly string connectionString;
 
@@ -133,7 +136,9 @@ namespace Rebus.AzureServiceBus
                         {
                             using (var messageToSendImmediately = CreateBrokeredMessage(envelopeToSendImmediately))
                             {
-                                GetClientFor(destinationQueueName).Send(messageToSendImmediately);
+                                GetClientContextFor(destinationQueueName)
+                                    .Client
+                                    .Send(messageToSendImmediately);
                             }
                         });
 
@@ -155,34 +160,78 @@ namespace Rebus.AzureServiceBus
             messagesToSend.Add(Tuple.Create(destinationQueueName, envelope));
         }
 
-        QueueClient GetClientFor(string destinationQueueName)
+        QueueClientContext GetClientContextFor(string destinationQueueName)
         {
-            var client = queueClients.GetOrAdd(destinationQueueName, CreateNewClient);
+            var clientContext = queueClientContexts.GetOrAdd(destinationQueueName, CreateNewClientContext);
+            var client = clientContext.Client;
 
-            if (!client.IsClosed) return client;
+            if (!client.IsClosed)
+                return clientContext;
 
-            client = CreateNewClient(destinationQueueName);
-            queueClients[destinationQueueName] = client;
-
-            return client;
+            clientContext = CreateNewClientContext(destinationQueueName);
+            queueClientContexts[destinationQueueName] = clientContext;
+            return clientContext;
         }
 
-        QueueClient CreateNewClient(string queueName)
+        QueueClientContext CreateNewClientContext(string queueName)
         {
-            return QueueClient.CreateFromConnectionString(connectionString, queueName);
+            var client = QueueClient.CreateFromConnectionString(connectionString, queueName, ReceiveMode.PeekLock);
+            return new QueueClientContext(client, queueName);
+        }
+
+        void EnsureClientConfiguredForReceiveEvents(QueueClientContext clientContext)
+        {
+            if (clientContext.IsConfiguredForReceiveEvents)
+                return;
+
+            lock (clientContext.Client)
+            {
+                if (clientContext.IsConfiguredForReceiveEvents)
+                    return;
+
+                clientContext.IsConfiguredForReceiveEvents = true;
+            }
+
+            var client = clientContext.Client;
+            var queueName = clientContext.QueueName;
+
+            client.OnMessageAsync(message =>
+            {
+                Trace.WriteLine(string.Format("Received message: {0}", message.MessageId));
+
+                var context = SetCurrentMessageContext(queueName, message);
+                if (context != null)
+                    return context.Handle.Task.ContinueWith(task => Trace.WriteLine(string.Format("Task complete: {0}", context.CorrelationId)));
+
+                message.Abandon();
+                var abortTask = new TaskCompletionSource<bool>();
+                abortTask.SetCanceled();
+                return abortTask.Task;
+            },
+            new OnMessageOptions { AutoComplete = false, MaxConcurrentCalls = 1 });
         }
 
         public ReceivedTransportMessage ReceiveMessage(ITransactionContext context)
         {
             try
             {
-                var brokeredMessage = GetClientFor(InputQueue).Receive(TimeSpan.FromSeconds(1));
+                CompletePreviousMessage(InputQueue);
+
+                var clientContext = GetClientContextFor(InputQueue);
+                EnsureClientConfiguredForReceiveEvents(clientContext);
+
+                var messageContext = TryGetMessageFromWorkingQueue(InputQueue);
+
+                if (messageContext == null)
+                    return null;
+
+                var brokeredMessage = messageContext.Message;
 
                 if (brokeredMessage == null)
-                {
                     return null;
-                }
 
+                Trace.WriteLine(string.Format("Rebus Message Id: {0}", brokeredMessage.MessageId));
+                messageContext.Processed = true;
                 var messageId = brokeredMessage.MessageId;
 
                 try
@@ -206,7 +255,8 @@ namespace Rebus.AzureServiceBus
 
                         if (peekLockRenewalInterval > TimeSpan.FromSeconds(1))
                         {
-                            context[AzureServiceBusReceivedMessagePeekLockRenewalTimer] = ScheduleInvocation(peekLockRenewalAction, peekLockRenewalInterval);
+                            context[AzureServiceBusReceivedMessagePeekLockRenewalTimer] =
+                                ScheduleInvocation(peekLockRenewalAction, peekLockRenewalInterval);
                         }
 
                         context.DoCommit += () => DoCommit(context);
@@ -238,7 +288,9 @@ namespace Rebus.AzureServiceBus
                         log.Info("Will attempt to abandon message {0}", messageId);
                         brokeredMessage.Abandon();
                     }
-                    catch { }
+                    catch
+                    {
+                    }
 
                     throw new ApplicationException(message, receiveException);
                 }
@@ -266,6 +318,49 @@ namespace Rebus.AzureServiceBus
 
                 return null;
             }
+        }
+
+        void CompletePreviousMessage(string inputQueue)
+        {
+            WorkingMessageContext messageContext;
+            if (!innerWorkingQueue.TryGetValue(inputQueue, out messageContext))
+                return;
+
+            if (!messageContext.Processed)
+                return;
+
+            if (!innerWorkingQueue.TryRemove(inputQueue, out messageContext))
+                return;
+
+            Trace.WriteLine(string.Format("Marking context complete: {0}", messageContext.CorrelationId));
+            messageContext.Handle.SetResult(true);
+        }
+
+        WorkingMessageContext TryGetMessageFromWorkingQueue(string inputQueue)
+        {
+            WorkingMessageContext messageContext;
+            if (!innerWorkingQueue.TryGetValue(inputQueue, out messageContext))
+                return null;
+
+            Trace.WriteLine(string.Format("Retrieved Context from working queue: {0}", messageContext.CorrelationId));
+            return messageContext;
+        }
+
+        WorkingMessageContext SetCurrentMessageContext(string inputQueue, BrokeredMessage message)
+        {
+            var context = new WorkingMessageContext();
+            var result = innerWorkingQueue.TryAdd(inputQueue, context);
+            if (!result)
+                return null;
+
+            context.CorrelationId = Guid.NewGuid();
+            context.Message = message;
+            context.Processed = false;
+            context.Handle = new TaskCompletionSource<bool>();
+
+            Trace.WriteLine(string.Format("Set current message context: {0}", context.CorrelationId));
+
+            return context;
         }
 
         void RenewPeekLock(ITransactionContext context, string messageId)
@@ -363,8 +458,8 @@ namespace Rebus.AzureServiceBus
             catch
             {
             }
-
         }
+
         void DoCleanUp(ITransactionContext context)
         {
             var timer = context[AzureServiceBusReceivedMessagePeekLockRenewalTimer] as Timer;
@@ -429,7 +524,7 @@ namespace Rebus.AzureServiceBus
                                         (exception, delay, faultNumber) =>
                                             log.Warn("An exception occurred while making attempt no. {0} to send message from batch of {1} to {2}: {3} - will wait {4} and try again",
                                                 faultNumber, messagesToSend.Count, destinationQueueName, exception, delay))
-                                    .Do(() => GetClientFor(destinationQueueName).Send(brokeredMessage));
+                                    .Do(() => GetClientContextFor(destinationQueueName).Client.Send(brokeredMessage));
                             });
                         }
                         else
@@ -458,7 +553,7 @@ namespace Rebus.AzureServiceBus
                                                 "An exception occurred while making attempt no. {0} to send batch of {1} messages to {2} (out of a total of {3} messages): {4} - will wait {5} and try again",
                                                 faultNumber, brokeredMessagesInThisBatch.Count, destinationQueueName,
                                                 messagesToSend.Count, exception, delay))
-                                    .Do(() => GetClientFor(destinationQueueName).SendBatch(brokeredMessagesInThisBatch));
+                                    .Do(() => GetClientContextFor(destinationQueueName).Client.SendBatch(brokeredMessagesInThisBatch));
                             }
                         }
                     }
@@ -557,11 +652,11 @@ namespace Rebus.AzureServiceBus
             {
                 try
                 {
-                    foreach (var client in queueClients)
+                    foreach (var clientContext in queueClientContexts)
                     {
-                        log.Info("Closing queue client for '{0}'", client.Key);
+                        log.Info("Closing queue client for '{0}'", clientContext.Key);
 
-                        client.Value.Close();
+                        clientContext.Value.Client.Close();
                     }
                 }
                 catch (Exception e)
@@ -571,6 +666,27 @@ namespace Rebus.AzureServiceBus
             }
 
             disposed = true;
+        }
+
+        private class WorkingMessageContext
+        {
+            public Guid CorrelationId { get; set; }
+            public BrokeredMessage Message { get; set; }
+            public TaskCompletionSource<bool> Handle { get; set; }
+            public bool Processed { get; set; }
+        }
+
+        private class QueueClientContext
+        {
+            public QueueClientContext(QueueClient client, string queueName)
+            {
+                Client = client;
+                QueueName = queueName;
+            }
+
+            public QueueClient Client { get; private set; }
+            public string QueueName { get; private set; }
+            public bool IsConfiguredForReceiveEvents { get; set; }
         }
     }
 }
