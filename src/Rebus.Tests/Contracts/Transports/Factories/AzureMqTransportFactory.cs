@@ -1,5 +1,5 @@
 ﻿using System;
-using Microsoft.WindowsAzure;
+using Microsoft.WindowsAzure.Storage;
 using Rebus.Azure;
 
 namespace Rebus.Tests.Contracts.Transports.Factories

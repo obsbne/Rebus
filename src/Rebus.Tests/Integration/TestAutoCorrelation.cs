@@ -62,7 +62,7 @@ namespace Rebus.Tests.Integration
             // assert
             sagaPersister.Count().ShouldBe(1);
             var sagaData = sagaPersister.Single();
-            sagaData.ShouldBeTypeOf<SomeSagaData>();
+            sagaData.ShouldBeOfType<SomeSagaData>();
             ((SomeSagaData)sagaData).GotTheReply.ShouldBe(!abandonReply);
         }
 
@@ -80,7 +80,7 @@ namespace Rebus.Tests.Integration
             // assert
             sagaPersister.Count().ShouldBe(1);
             var sagaData = sagaPersister.Single();
-            sagaData.ShouldBeTypeOf<SomeSagaData>();
+            sagaData.ShouldBeOfType<SomeSagaData>();
             ((SomeSagaData)sagaData).GotTheDeferredMessage.ShouldBe(true);
         }
 
@@ -104,7 +104,7 @@ namespace Rebus.Tests.Integration
             // assert
             sagaPersister.Count().ShouldBe(1);
             var sagaData = sagaPersister.Single();
-            sagaData.ShouldBeTypeOf<SomeSagaData>();
+            sagaData.ShouldBeOfType<SomeSagaData>();
             ((SomeSagaData)sagaData).GotTheReply.ShouldBe(true);
         }
 

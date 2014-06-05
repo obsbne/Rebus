@@ -1,8 +1,8 @@
 ﻿using System;
 using System.IO;
 using System.Runtime.Serialization.Formatters.Binary;
-using Microsoft.WindowsAzure;
-using Microsoft.WindowsAzure.StorageClient;
+using Microsoft.WindowsAzure.Storage;
+using Microsoft.WindowsAzure.Storage.Queue;
 using Rebus.Logging;
 using Rebus.Shared;
 
@@ -33,9 +33,10 @@ namespace Rebus.Azure
             cloudQueueClient = cloudStorageAccount.CreateCloudQueueClient();
 
             inputQueue = cloudQueueClient.GetQueueReference(inputQueueName);
-            inputQueue.CreateIfNotExist();
+            inputQueue.CreateIfNotExists();
 
-            cloudQueueClient.GetQueueReference(errorQueueName).CreateIfNotExist();
+            cloudQueueClient.GetQueueReference(errorQueueName)
+                .CreateIfNotExists();
 
             this.inputQueueName = inputQueueName;
             this.errorQueueName = errorQueueName;

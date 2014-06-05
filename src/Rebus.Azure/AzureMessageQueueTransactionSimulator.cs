@@ -1,6 +1,6 @@
 ﻿using System;
 using System.Transactions;
-using Microsoft.WindowsAzure.StorageClient;
+using Microsoft.WindowsAzure.Storage.Queue;
 
 namespace Rebus.Azure
 {

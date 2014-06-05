@@ -78,7 +78,7 @@ namespace Rebus.Tests.Configuration
             var configurer = Configure.With(adapter)
                                       .Timeouts(t => t.StoreInSqlServer("someConnectionString", "timeouts"));
 
-            configurer.Backbone.StoreTimeouts.ShouldBeTypeOf<SqlServerTimeoutStorage>();
+            configurer.Backbone.StoreTimeouts.ShouldBeOfType<SqlServerTimeoutStorage>();
         }
 
         [Test]
@@ -139,8 +139,8 @@ namespace Rebus.Tests.Configuration
 
             configurer.CreateBus();
 
-            configurer.Backbone.SendMessages.ShouldBeTypeOf<EncryptionAndCompressionTransportDecorator>();
-            configurer.Backbone.ReceiveMessages.ShouldBeTypeOf<EncryptionAndCompressionTransportDecorator>();
+            configurer.Backbone.SendMessages.ShouldBeOfType<EncryptionAndCompressionTransportDecorator>();
+            configurer.Backbone.ReceiveMessages.ShouldBeOfType<EncryptionAndCompressionTransportDecorator>();
         }
 
         [Test]
@@ -181,7 +181,7 @@ namespace Rebus.Tests.Configuration
             Configure.With(adapter)
                 .Logging(l => l.Console());
 
-            RebusLoggerFactory.Current.ShouldBeTypeOf<ConsoleLoggerFactory>();
+            RebusLoggerFactory.Current.ShouldBeOfType<ConsoleLoggerFactory>();
         }
 
         [Test]
@@ -192,7 +192,7 @@ namespace Rebus.Tests.Configuration
             Configure.With(adapter)
                 .Logging(l => l.Log4Net());
 
-            RebusLoggerFactory.Current.ShouldBeTypeOf<Log4NetLoggerFactory>();
+            RebusLoggerFactory.Current.ShouldBeOfType<Log4NetLoggerFactory>();
         }
 
         [Test]
@@ -203,7 +203,7 @@ namespace Rebus.Tests.Configuration
             Configure.With(adapter)
                 .Logging(l => l.ColoredConsole());
 
-            RebusLoggerFactory.Current.ShouldBeTypeOf<ConsoleLoggerFactory>();
+            RebusLoggerFactory.Current.ShouldBeOfType<ConsoleLoggerFactory>();
         }
 
         [Test]
@@ -214,7 +214,7 @@ namespace Rebus.Tests.Configuration
             var configurer = Configure.With(adapter)
                 .SpecifyOrderOfHandlers(h => h.First<SomeType>().Then<AnotherType>());
 
-            configurer.Backbone.InspectHandlerPipeline.ShouldBeTypeOf<RearrangeHandlersPipelineInspector>();
+            configurer.Backbone.InspectHandlerPipeline.ShouldBeOfType<RearrangeHandlersPipelineInspector>();
 
             var inspector = (RearrangeHandlersPipelineInspector)configurer.Backbone.InspectHandlerPipeline;
             var order = inspector.GetOrder();
@@ -230,8 +230,8 @@ namespace Rebus.Tests.Configuration
             var configurer = Configure.With(adapter)
                 .Transport(t => t.UseMsmq("some_input_queue", "some_error_queue"));
 
-            configurer.Backbone.SendMessages.ShouldBeTypeOf<MsmqMessageQueue>();
-            configurer.Backbone.ReceiveMessages.ShouldBeTypeOf<MsmqMessageQueue>();
+            configurer.Backbone.SendMessages.ShouldBeOfType<MsmqMessageQueue>();
+            configurer.Backbone.ReceiveMessages.ShouldBeOfType<MsmqMessageQueue>();
 
             configurer.Backbone.SendMessages.ShouldBeSameAs(configurer.Backbone.ReceiveMessages);
 
@@ -248,8 +248,8 @@ namespace Rebus.Tests.Configuration
             var configurer = Configure.With(adapter)
                 .Transport(t => t.UseMsmqAndGetInputQueueNameFromAppConfig());
 
-            configurer.Backbone.SendMessages.ShouldBeTypeOf<MsmqMessageQueue>();
-            configurer.Backbone.ReceiveMessages.ShouldBeTypeOf<MsmqMessageQueue>();
+            configurer.Backbone.SendMessages.ShouldBeOfType<MsmqMessageQueue>();
+            configurer.Backbone.ReceiveMessages.ShouldBeOfType<MsmqMessageQueue>();
 
             configurer.Backbone.SendMessages.ShouldBeSameAs(configurer.Backbone.ReceiveMessages);
 
@@ -269,8 +269,8 @@ namespace Rebus.Tests.Configuration
                 .Sagas(s => s.StoreInSqlServer(connectionstring, "saga_table", "saga_index_table"))
                 .Subscriptions(s => s.StoreInSqlServer(connectionstring, "subscriptions"));
 
-            configurer.Backbone.StoreSagaData.ShouldBeTypeOf<SqlServerSagaPersister>();
-            configurer.Backbone.StoreSubscriptions.ShouldBeTypeOf<SqlServerSubscriptionStorage>();
+            configurer.Backbone.StoreSagaData.ShouldBeOfType<SqlServerSagaPersister>();
+            configurer.Backbone.StoreSubscriptions.ShouldBeOfType<SqlServerSubscriptionStorage>();
 
 
             var sagaPersister = (SqlServerSagaPersister)configurer.Backbone.StoreSagaData;
@@ -291,7 +291,7 @@ namespace Rebus.Tests.Configuration
                                         .AddNameResolver(t => null)
                                         .AddTypeResolver(d => null));
 
-            configurer.Backbone.SerializeMessages.ShouldBeTypeOf<JsonMessageSerializer>();
+            configurer.Backbone.SerializeMessages.ShouldBeOfType<JsonMessageSerializer>();
         }
 
         [Test]

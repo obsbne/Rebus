@@ -1,8 +1,8 @@
 /*
   In App.xaml:
   <Application.Resources>
-      <vm:ViewModelLocatorTemplate xmlns:vm="clr-namespace:Rebus.Snoop"
-                                   x:Key="Locator" />
+      <vm:ViewModelLocator xmlns:vm="clr-namespace:Rebus.Snoop"
+                           x:Key="Locator" />
   </Application.Resources>
   
   In the View:
@@ -12,6 +12,10 @@
   See http://www.galasoft.ch/mvvm
 */
 
+using GalaSoft.MvvmLight;
+using GalaSoft.MvvmLight.Ioc;
+using Microsoft.Practices.ServiceLocation;
+
 namespace Rebus.Snoop.ViewModel
 {
     /// <summary>
@@ -20,48 +24,38 @@ namespace Rebus.Snoop.ViewModel
     /// </summary>
     public class ViewModelLocator
     {
-        static MainViewModel main;
-        
-        readonly MachinesViewModel machinesViewModel;
-
         /// <summary>
         /// Initializes a new instance of the ViewModelLocator class.
         /// </summary>
         public ViewModelLocator()
         {
+            ServiceLocator.SetLocatorProvider(() => SimpleIoc.Default);
+
             ////if (ViewModelBase.IsInDesignModeStatic)
             ////{
-            ////    // Create design time services and viewmodels
+            ////    // Create design time view services and models
+            ////    SimpleIoc.Default.Register<IDataService, DesignDataService>();
             ////}
             ////else
             ////{
-            ////    // Create run time services and view models
+            ////    // Create run time view services and models
+            ////    SimpleIoc.Default.Register<IDataService, DataService>();
             ////}
 
-            main = new MainViewModel();
-
-            machinesViewModel = new MachinesViewModel();
+            SimpleIoc.Default.Register<MainViewModel>();
         }
 
-        /// <summary>
-        /// Gets the Main property which defines the main viewmodel.
-        /// </summary>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Performance",
-            "CA1822:MarkMembersAsStatic",
-            Justification = "This non-static member is needed for data binding purposes.")]
         public MainViewModel Main
         {
             get
             {
-                return main;
+                return ServiceLocator.Current.GetInstance<MainViewModel>();
             }
         }
-
-        public MachinesViewModel MachinesViewModel
+        
+        public static void Cleanup()
         {
-            get {
-                return machinesViewModel;
-            }
+            // TODO Clear the ViewModels
         }
     }
 }
